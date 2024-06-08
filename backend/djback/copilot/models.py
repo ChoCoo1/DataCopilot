@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
+#推送第二次
 class DatabaseConnection(models.Model):
     username = models.CharField(max_length=100, blank=True)
     sql_type = models.CharField(max_length=100, blank=True)

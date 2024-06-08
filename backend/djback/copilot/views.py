@@ -24,6 +24,7 @@ os.environ["OPENAI_API_KEY"] = API_SECRET_KEY
 os.environ["OPENAI_API_BASE"] = BASE_URL
 
 @api_view(['POST'])
+#推送第二次
 def test_database_connection(request):
     sql_type = request.data.get('sqlType')
     sql_address = request.data.get('sqlAddress')
