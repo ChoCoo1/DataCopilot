@@ -20,3 +20,9 @@ class DatabaseNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = DatabaseConnection
         fields = ['id', 'sql_name']
+
+
+class SearchHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SearchHistory
+        fields = ['created_at', 'search_sql_name', 'search_query']

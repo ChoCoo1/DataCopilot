@@ -107,3 +107,89 @@ def delete_database_connection(request):
 
     connection.delete()
     return Response({'message': 'Database connection deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+# 搜索历史
+@api_view(['POST'])
+def add_search_history(request):
+    username = request.data.get('username', '')
+    search_query = request.data.get('search_query', '')
+    search_sql_name = request.data.get('search_sql_name', '')
+    SearchHistory.objects.create(username=username, search_query=search_query, search_sql_name=search_sql_name)
+    return Response({'message': 'Search history saved successfully'}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+def get_search_history(request):
+    username = request.query_params.get('username')
+    history = SearchHistory.objects.filter(username=username)
+    serializer = SearchHistorySerializer(history, many=True)
+    print(serializer.data)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+# 大模型
+@api_view(['POST'])
+def generate_sql_query(request):
+    # 从前端获取搜索内容
+    search_query = request.data.get('search_query', '')
+    username = request.data.get('username', '')
+    sql_name = request.data.get('sql_name', '')
+    search_query = search_query + '不要使用LIMIT命令，并且如果要使用聚合函数，请把使用聚合函数的变量放在select作为最后一个变量，把可以识别每个列的变量作为select的第一个变量。'
+    search_query = Translator(from_lang="ZH", to_lang="EN-US").translate(search_query)
+
+    # 初始化LangChain模型并指定API URL
+    llm = ChatOpenAI(model="gpt-3.5-turbo")
+
+    # 根据sql_name获取数据库连接信息
+    connections = DatabaseConnection.objects.filter(username=username, sql_name=sql_name)
+    if not connections.exists():
+        return Response({"error": "Database connection not found."}, status=404)
+    serializer = DatabaseConnectionSerializer(connections, many=True)
+    connection_info = serializer.data[0]  # 假设只有一个数据库连接
+
+    # 创建SQLDatabase对象
+    db_uri = f"mysql+pymysql://{connection_info['sql_login_name']}:{connection_info['sql_pwd']}@" \
+             f"{connection_info['sql_address']}:{connection_info['sql_port']}/{connection_info['sql_name']}"
+    db = SQLDatabase.from_uri(db_uri)
+
+    # 创建SQL查询链
+    sql_query_chain = create_sql_query_chain(llm, db)
+
+    # 生成SQL查询
+    sql_query = sql_query_chain.invoke({"question": search_query})
+
+    if not sql_query.lower().startswith('select'):
+        return Response({"error": "Invalid SQL query generated."}, status=400)
+        # 将查询语句中的换行符替换为空格
+
+    sql_query = sql_query.replace('\n', ' ')
+    # 截断在第一个分号处
+    sql_query = sql_query.split(';')[0] + ';'
+
+    can_chart = False
+    aggregate_functions = ['COUNT', 'SUM', 'AVG']  # 可能的聚合函数列表
+
+    for func in aggregate_functions:
+        if func in sql_query.upper():  # 不区分大小写地检查是否包含聚合函数
+            can_chart = True
+    # 使用pymysql执行查询并获取结果
+    try:
+        connection = pymysql.connect(
+            host=connection_info['sql_address'],
+            port=int(connection_info['sql_port']),
+            user=connection_info['sql_login_name'],
+            password=connection_info['sql_pwd'],
+            database=connection_info['sql_name'],
+            cursorclass=pymysql.cursors.DictCursor
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(sql_query)
+            results = cursor.fetchall()
+            column_names = cursor.description
+        connection.close()
+
+        # 获取列名
+        column_names = [col[0] for col in column_names]
+    except pymysql.MySQLError as e:
+        return Response({"error": str(e)}, status=500)
+    return Response({"sql_query": sql_query, "columns": column_names, "results": results, "shouldChart": can_chart})

@@ -24,3 +24,9 @@ class DatabaseConnection(models.Model):
             return False, e.message_dict
         return True, None
 
+
+class SearchHistory(models.Model):
+    username = models.CharField(max_length=100, blank=True)
+    search_query = models.CharField(max_length=255, blank=True)
+    search_sql_name = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
