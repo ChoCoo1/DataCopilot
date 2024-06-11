@@ -3,6 +3,14 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
+
+# Create your models here.
+# 用户表
+class CustomUser(AbstractUser):
+    phone = models.CharField(max_length=11, blank=True)  # 添加手机号字段
+    created_at = models.DateTimeField(default=timezone.now)  # 添加创建时间字段，自动填充当前时间
+
+
 #推送第二次
 class DatabaseConnection(models.Model):
     username = models.CharField(max_length=100, blank=True)

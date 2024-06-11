@@ -2,6 +2,42 @@ from rest_framework import serializers
 from .models import *
 from django.contrib.auth import authenticate
 
+
+class CustomUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'password', 'phone', 'created_at']  # 添加 created_at 字段
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'created_at': {'read_only': True}
+        }
+
+    def create(self, validated_data):
+        user = CustomUser.objects.create_user(**validated_data)
+        return user
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        username = data.get('username')
+        password = data.get('password')
+
+        if username and password:
+            user = authenticate(username=username, password=password)
+            if user is None:
+                raise serializers.ValidationError("不可用的用户名和密码")
+            if not user.is_active:
+                raise serializers.ValidationError("用户名已存在")
+        else:
+            raise serializers.ValidationError("必须有用户名和密码")
+
+        data['user'] = user
+        return data
+
+
 #推送第二次
 class DatabaseConnectionSerializer(serializers.ModelSerializer):
     class Meta:

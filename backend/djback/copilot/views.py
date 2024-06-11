@@ -23,6 +23,30 @@ BASE_URL = "https://api.gpts.vin/v1"
 os.environ["OPENAI_API_KEY"] = API_SECRET_KEY
 os.environ["OPENAI_API_BASE"] = BASE_URL
 
+
+class RegisterView(generics.CreateAPIView):
+    queryset = CustomUser.objects.all()
+    serializer_class = CustomUserSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class LoginView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        login(request, user)
+        return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 #推送第二次
 def test_database_connection(request):
@@ -126,6 +150,38 @@ def get_search_history(request):
     serializer = SearchHistorySerializer(history, many=True)
     print(serializer.data)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def update_password(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    try:
+        user = CustomUser.objects.get(username=username)
+        user.set_password(password)
+        user.save()
+        return Response({'message': 'Password updated successfully'}, status=status.HTTP_200_OK)
+    except CustomUser.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def update_phone(request):
+    username = request.data.get('username')
+    phone = request.data.get('phone')
+    try:
+        user = CustomUser.objects.get(username=username)
+        user.phone = phone
+        user.save()
+        return Response({'message': 'Phone number updated successfully'}, status=status.HTTP_200_OK)
+    except CustomUser.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 # 大模型
 @api_view(['POST'])
